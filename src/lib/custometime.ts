@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 export default function formatTimestampToTime(timestamp:{seconds:number,nanoseconds:number}) {
     // Convert Firestore timestamp (seconds + nanoseconds) to milliseconds
     if(timestamp && timestamp.seconds && timestamp.nanoseconds){
@@ -8,7 +11,7 @@ export default function formatTimestampToTime(timestamp:{seconds:number,nanoseco
   
     // Format the time as "10:30 PM" using toLocaleTimeString with options
     const options = { hour: 'numeric', minute: 'numeric', hour12: true };
-    return date.toLocaleTimeString('en-US', options);
+    return date.toLocaleTimeString('en-US', options as any);
 }
 return ""
   }

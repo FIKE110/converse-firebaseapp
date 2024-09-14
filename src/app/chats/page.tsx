@@ -1,13 +1,12 @@
 'use client'
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useRef, useEffect } from 'react'
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
 import { Label } from "@/app/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Separator } from "@/app/components/ui/seperator"
 import {v4 as uuid} from 'uuid'
-import { PlusCircle, Send, MoreVertical, Link, Users, Key, LogOut, Paperclip, X, ArrowLeft, SearchIcon, LockKeyholeOpen, LockKeyholeIcon } from "lucide-react"
+import { PlusCircle, Send, MoreVertical, Users, Key, LogOut, Paperclip, X, ArrowLeft, SearchIcon, LockKeyholeOpen, LockKeyholeIcon } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -26,12 +25,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu"
-import { arrayRemove, arrayUnion, collection, doc, FirestoreError, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { arrayRemove, collection, doc, getDoc,  onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import useAuth from '@/lib/auth'
 import formatTimestampToTime from '@/lib/custometime'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Modal from '../components/ui/modal'
 import MembersModal from '../components/ui/membermodal'
 import toast from 'react-hot-toast'
@@ -43,14 +42,6 @@ type Message = {
   content: string;
   timestamp: string;
 }
-
-type RoomMessages={
-    id:string;
-    message:string;
-    timestamp:string;
-    sender:string;
-}
-
 
 type CreateRoomType={
     name:string;
@@ -68,7 +59,7 @@ type CreateRoomType={
 
 export default function ChatPage() {
     
-    const {data,error,isLoading,refetch}=useQuery<any[]>({queryKey:["rooms"],queryFn:()=>getRooms()})
+    const {data,refetch}=useQuery<any[]>({queryKey:["rooms"],queryFn:()=>getRooms()})
     const mutation=useMutation({mutationKey:['roomsmute'],mutationFn:createNewRoom})
     const mutationRoomChats=useMutation({mutationKey:['roomschats'],mutationFn:getRoomChats})
     const router=useRouter()

@@ -1,5 +1,5 @@
 'use client'
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'

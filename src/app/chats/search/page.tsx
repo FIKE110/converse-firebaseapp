@@ -1,4 +1,6 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { SetStateAction, useEffect, useState } from 'react'
 import { Search, Lock, ArrowLeft } from 'lucide-react'
 import { Button } from "@/app/components/ui/button"
