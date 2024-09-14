@@ -74,7 +74,6 @@ export default function ChatPage() {
     async function getRooms():Promise<any>{
         return new Promise((resolve,reject)=>{
             const roomRef=collection(db,'rooms')
-            if(!user) return
             const q=query(roomRef,where('members','array-contains',user.uid))
             onSnapshot(q,(snapshot)=>{
                 const rooms=snapshot.docs.map((doc)=>doc.data());
