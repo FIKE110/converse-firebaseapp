@@ -6,7 +6,8 @@ import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
 import { Label } from "@/app/components/ui/label"
 import {v4 as uuid} from 'uuid'
-import { PlusCircle, Send, MoreVertical, Users, Key, LogOut, Paperclip, X, ArrowLeft, SearchIcon, LockKeyholeOpen, LockKeyholeIcon } from "lucide-react"
+import {useDropzone} from 'react-dropzone'
+import { PlusCircle, Send, MoreVertical, Users, Key, LogOut, Paperclip, X, ArrowLeft, SearchIcon, LockKeyholeOpen, LockKeyholeIcon, MicOff, Mic } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -26,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu"
 import { arrayRemove, collection, doc, getDoc,  onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { db, storage } from '@/lib/firebase'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import useAuth from '@/lib/auth'
 import formatTimestampToTime from '@/lib/custometime'
@@ -34,6 +35,10 @@ import { useRouter } from 'next/navigation'
 import Modal from '../components/ui/modal'
 import MembersModal from '../components/ui/membermodal'
 import toast from 'react-hot-toast'
+import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage'
+import Image from 'next/image'
+import getFileCategory from '@/lib/filetype'
+import { getFileIcon } from '../components/FileIcon'
 
 
 type Message = {
@@ -65,6 +70,13 @@ export default function ChatPage() {
     const router=useRouter()
     const {user,loading,username}=useAuth()
     const scrollRef=useRef<any>(null)
+    const [speed, setSpeed] = useState<number | string>(0);
+    const [isUploading, setIsUploading] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
 
     if(user && !loading && !username){
       router.replace("/profile/setup")
@@ -107,6 +119,7 @@ export default function ChatPage() {
             })
     }
 
+
    if(mutation.isSuccess){
     refetch()
    }
@@ -127,6 +140,21 @@ export default function ChatPage() {
   const [isOpen,setIsOpen]=useState(false)
   const [modalOpen,setModalOpen]=useState(false)
   const [membersList,setMembersList]=useState([])
+
+  const { getRootProps, getInputProps, acceptedFiles } = useDropzone({
+    noClick:true,
+    noKeyboard:true,
+    onDrop: (acceptedFiles) => {
+      if (fileInputRef.current && acceptedFiles.length > 0) {
+        const file = acceptedFiles[0];
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInputRef.current.files = dataTransfer.files;
+        setAttachments([file])
+      }
+    },
+  });
+
 
 
   useEffect(()=>{
@@ -173,6 +201,93 @@ export default function ChatPage() {
   
   }, [selectedRoom]);
 
+  const stopRecording = () => {
+    mediaRecorderRef.current.stop();
+    setIsRecording(false);
+  };
+
+
+  const startRecording = async () => {
+    if(!selectedRoom) return 
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      recordedChunksRef.current = [];
+
+      const recordingVn=new Promise((resolve,reject)=>{
+        mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(recordedChunksRef.current, {
+          type: "audio/webm",
+        });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setAudioUrl(audioUrl);
+        handleSendMessage(null,audioBlob,true)
+        resolve("vn stopped")
+      }}
+    )
+
+    toast.promise(recordingVn,{
+      error:<h1>Could not record vn</h1>,
+      loading:<h1>Voice note is being made</h1>,
+      success:<h1>Sucessfully made voice note</h1>
+    })
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+    }
+  };
+
+
+  function uploadFile(file:File | Blob | any,vn:boolean){
+    if(!file) return 
+    return new Promise((resolve,reject)=>{
+      const fileId=uuid()
+    const storageRef=
+    vn ? ref(storage, `voice_notes/${Date.now()}.webm`) : ref(storage,`${file.type ? file.type.split('/')[0] : 'others'}/${fileId}_${file.name}`)
+    const uploadTask=uploadBytesResumable(storageRef,file)
+    setIsUploading(true);
+
+    let previousTime = Date.now();
+    let previousBytesTransferred = 0;
+    uploadTask.on('state_changed',(snapshot)=>{
+      const currentTime = Date.now();
+        const bytesTransferred = snapshot.bytesTransferred;
+        const totalBytes = snapshot.totalBytes;
+        const elapsedTime = (currentTime - previousTime) / 1000; // Time in seconds
+        const bytesUploadedSinceLast = bytesTransferred - previousBytesTransferred;
+
+        // Calculate the upload speed (in KB/s)
+        const uploadSpeed = (bytesUploadedSinceLast / 1024) / elapsedTime;
+
+        setProgress((bytesTransferred / totalBytes) * 100);
+        setSpeed(uploadSpeed.toFixed(2)); // Display upload speed rounded to 2 decimal places
+
+        previousTime = currentTime;
+        previousBytesTransferred = bytesTransferred;
+      console.log(snapshot.bytesTransferred)
+    },(error)=>{
+      console.log(error)
+      setIsUploading(false);
+      reject(error.message)
+    },
+    ()=>{
+      setIsUploading(false);
+        getDownloadURL(uploadTask.snapshot.ref).then(downloadUrl=>{
+        resolve(downloadUrl)
+      })
+    }
+  )
+    })
+  }
+
 
   async function getRoomChats(roomId:string | null){
     console.log(roomId)
@@ -209,10 +324,19 @@ export default function ChatPage() {
     mutationRoomChats.mutate(roomId)
   }
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSendMessage = async (e: React.FormEvent,VN ,vn=false) => {
+    e?.preventDefault()
+   
     const messageId=uuid()
-    if ((newMessage.trim() || attachments.length > 0) && selectedRoom) {
+    if ((newMessage.trim() || attachments.length > 0  || vn) && selectedRoom) {
+      const downloadUrl=!vn ? uploadFile(attachments[0],false) : uploadFile(VN,true)
+      if(attachments[0] || vn){
+      toast.promise(downloadUrl,{
+        loading:<h1>Uploading attachment</h1>,
+        success:<h1>Successfully uploaded attachment</h1>,
+        error:<h1>Could not upload attachment</h1>
+      })
+    }
       const newMsg: Message = {
         id: Date.now().toString(),
         sender: 'You', // In a real app, this would be the current user's name
@@ -229,11 +353,15 @@ export default function ChatPage() {
         router.replace("/profile/setup")
       }
 
+      const messageType=getFileCategory(vn ? 'audio/webm' : attachments[0] ? attachments[0].type : 'message')
+
       await setDoc(doc(db,'rooms',selectedRoom,'messages',messageId),{
         id:messageId,
         sender:user?.uid,
         senderName:username || '',
         message:newMessage,
+        messageType:await downloadUrl ? messageType : 'message',
+        attachmentLink:await downloadUrl ? await downloadUrl : '', 
         timestamp:serverTimestamp() 
       })
 
@@ -333,7 +461,7 @@ export default function ChatPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setAttachments([...attachments, ...Array.from(e.target.files)])
+      setAttachments([e.target.files[0]])
     }
   }
 
@@ -432,7 +560,7 @@ export default function ChatPage() {
       </div>
 
       {/* Main chat area */}
-      <div className={`flex-grow overflow-hidden flex flex-col ${selectedRoom ? 'flex' : 'hidden md:flex'}`}>
+      <div   {...getRootProps({ className: 'dropzone' })} className={`flex-grow overflow-hidden flex flex-col ${selectedRoom ? 'flex' : 'hidden md:flex'}`}>
         <div className="bg-primary w-full text-primary-foreground p-4 shadow flex justify-between items-center">
           {selectedRoom && (
             <Button variant="ghost" size="icon" className="md:hidden mr-2" onClick={() => setSelectedRoom(null)}>
@@ -482,15 +610,38 @@ export default function ChatPage() {
               <div className={`inline-block p-4 rounded-lg ${message.sender === user?.uid ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
                 <p className="font-semibold text-xs pb-2">{message.sender===user.uid? 'You' : message.senderName}</p>
                 <p className='pb-2'>{message.message}</p>
-                {message.attachments && message.attachments.length > 0 && (
+                {message.attachmentLink && (
                   <div className="mt-2">
-                    {/* {message.attachments.map((attachment, index) => (
-                      <div key={index} className="text-sm">
-                        <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                          {attachment.name}
-                        </a>
-                      </div>
-                    ))} */}
+                    {message.messageType==='image'? <img src={`${message.attachmentLink}`} className='w-[100%] max-h-[900px] h-auto'/>
+                    // {/* {message.attachments.map((attachment, index) => (
+                    //   <div key={index} className="text-sm">
+                    //     <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                    //       {attachment.name}
+                    //     </a>
+                    //   </div>
+                    // ))} */}
+                     :
+                     <>{message.messageType==='video'  ? 
+                      <video src={`${message.attachmentLink}`} className='max-h-[900px] h-auto' controls/>
+                      :
+                      <>{message.messageType==='audio' 
+                        ? 
+                         <audio src={`${message.attachmentLink}`} controls />
+                        :
+                     <>
+                      <div className="flex-shrink-0 flex justify-end">
+                  {getFileIcon(message.messageType)}
+                </div>
+              <div>
+            <p className="text-gray-700 font-medium">{decodeURIComponent(message.attachmentLink.split("?")[0].split("_")[message.attachmentLink.split("?")[0].split("_").length-1])}</p>
+              <div className="mt-2 flex items-center space-x-2">
+            <span className="text-sm text-gray-500"></span>
+            <a href={`${message.attachmentLink}`} target='_blank' className="text-blue-500 text-sm hover:underline">Open attachment</a>
+            </div>
+              </div>
+                     </>}
+                     </>}
+                    </>}
                   </div>
                 )}
                 <p ref={index===messages.length-1 ? scrollRef : null} className="text-xs opacity-75 mt-1">{formatTimestampToTime(message.timestamp)}</p>
@@ -499,7 +650,7 @@ export default function ChatPage() {
           ))}
         </ScrollArea>
         <div className="bg-gray-100 p-4 border-t border-gray-200 md:static bottom-0 w-full">
-          <form onSubmit={handleSendMessage} className="space-y-2">
+          <form onSubmit={handleSendMessage as any} className="space-y-2">
             <div className="flex space-x-2">
               <Input
                 value={newMessage}
@@ -510,26 +661,33 @@ export default function ChatPage() {
               <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
                 <Paperclip className="h-4 w-4 stroke-black" />
               </Button>
+              {newMessage.trim().length>0 || attachments.length>0 ? 
               <Button type="submit" variant="secondary">
                 <Send className="h-4 w-4" />
               </Button>
+              :
+              <Button
+              type="button" className={isRecording ? "bg-red-500" : `bg-black`} 
+          onClick={isRecording ? stopRecording : startRecording}
+        >
+          {isRecording ? <MicOff /> : <Mic />}
+        </Button>}
             </div>
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              multiple
               className="hidden"
             />
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {attachments.map((file, index) => (
                   <div key={index} className="bg-white rounded-full px-3 py-1 text-sm flex items-center">
-                    <span className="truncate max-w-xs">{file.name}</span>
+                    <span className="truncate max-w-xs text-primary">{file.name}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveAttachment(index)}
-                      className="ml-2 text-gray-500 hover:text-gray-700"
+                      className="ml-2 text-primary hover:text-gray-700"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -537,7 +695,23 @@ export default function ChatPage() {
                 ))}
               </div>
             )}
-          </form>
+          </form>  
+          {isUploading && (
+        <div>
+          <div className="w-full bg-gray-200 rounded-full h-6">
+            <div
+              className="bg-blue-600 h-6 rounded-full transition-all"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+          <p className="text-gray-600 mt-2">
+            Upload Progress: {Math.round(progress)}%
+          </p>
+          <p className="text-gray-600">
+            Speed: {speed} KB/s
+          </p>
+        </div>
+      )}
         </div>
       </div>
       <MembersModal
