@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "76072139970",
+    "project_id": "chat-app-nextjs-4a7cb",
+    "storage_bucket": "chat-app-nextjs-4a7cb.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:76072139970:android:460d643bc819f89251cf5b",
+        "android_client_info": {
+          "package_name": "com.example.roomconversewithnextjs"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "76072139970-q0eepue7179uu4tjibu3m37hqd64o73r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCoaI9eK-VmW75UvV0hHpYledLh-mYYauQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "76072139970-q0eepue7179uu4tjibu3m37hqd64o73r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

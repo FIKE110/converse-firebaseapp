@@ -10,7 +10,9 @@ import { Mail } from "lucide-react"
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { auth, db } from '@/lib/firebase'
+import {Capacitor} from '@capacitor/core'
 import {  GoogleAuthProvider,signInWithEmailAndPassword,signInWithPopup } from 'firebase/auth'
+import {FirebaseAuthentication} from '@capacitor-firebase/authentication'
 import { collection, doc, getDoc } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 
@@ -25,7 +27,7 @@ export default function Login() {
       try{
         e.preventDefault()
         console.log('Signup attempt with:', { email, password })
-        const cred=await signInWithEmailAndPassword(auth,email,password)
+        const cred=Capacitor.getPlatform()==='android'? await FirebaseAuthentication.signInWithEmailAndPassword({email,password}) : await signInWithEmailAndPassword(auth,email,password)
         const userRef=collection(db,'users')
         const usernameSnapShot=await getDoc(doc(userRef,cred.user.uid))
         if(usernameSnapShot.exists() && usernameSnapShot.data().username){
@@ -53,8 +55,11 @@ catch(e:any){
 
   const handleGoogleLogin = async () => {
     console.log('Google signup initiated')
-    await signInWithPopup(auth,googleProvider)
+    console.log('Google signup initiated',Capacitor.getPlatform()==='web')
+    !(Capacitor.getPlatform()==='android')? await FirebaseAuthentication.signInWithGoogle()
+    : await signInWithPopup(auth,googleProvider)
     router.push('/chats')
+
   }
 
   return (
